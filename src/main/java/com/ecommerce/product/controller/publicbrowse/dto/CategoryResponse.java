@@ -1,4 +1,4 @@
-package com.ecommerce.product.controller.productlookup.dto;
+package com.ecommerce.product.controller.publicbrowse.dto;
 
 import com.ecommerce.product.model.db.entity.Category;
 

@@ -1,4 +1,4 @@
-package com.ecommerce.product.controller.productlookup;
+package com.ecommerce.product.controller.publicbrowse;
 
 import java.util.List;
 
@@ -10,10 +10,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.ecommerce.product.controller.productlookup.dto.ProductPublicResponse;
+import com.ecommerce.product.controller.publicbrowse.dto.ProductPublicResponse;
 import com.ecommerce.product.framework.response.GlobalResponse;
 import com.ecommerce.product.framework.response.dto.PaginationMeta;
-import com.ecommerce.product.service.productlookup.ProductPublicService;
+import com.ecommerce.product.service.publicbrowse.PublicBrowseService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -27,9 +27,9 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequestMapping("/api/v1/products")
 @RequiredArgsConstructor
-public class ProductPublicController {
+public class PublicBrowseController {
 
-    private final ProductPublicService productPublicService;
+    private final PublicBrowseService publicBrowseService;
 
     @Operation(summary = "Browse/Filter all products (Paginated)", description = "Get a paginated list of all products, optionally filtered by categoryId.")
     @ApiResponse(responseCode = "200", description = "Products retrieved successfully", content = @Content(mediaType = "application/json", schema = @Schema(implementation = PaginatedProductResponseWrapper.class)))
@@ -37,7 +37,18 @@ public class ProductPublicController {
     public GlobalResponse<List<ProductPublicResponse>> getAllProducts(
             @Parameter(description = "Filter by category ID", example = "1") @RequestParam(required = false) Long categoryId,
             @Parameter(hidden = true) @PageableDefault(size = 20, page = 0) Pageable pageable) {
-        Page<ProductPublicResponse> productPage = productPublicService.getAllProducts(categoryId, pageable);
+        Page<ProductPublicResponse> productPage = publicBrowseService.getAllProducts(categoryId, pageable);
+        PaginationMeta meta = new PaginationMeta(productPage);
+        return GlobalResponse.success(productPage.getContent(), meta);
+    }
+
+    @Operation(summary = "Search products (Full-Text)", description = "Search products by title and description using full-text search.")
+    @ApiResponse(responseCode = "200", description = "Search results retrieved successfully", content = @Content(mediaType = "application/json", schema = @Schema(implementation = PaginatedProductResponseWrapper.class)))
+    @GetMapping("/search")
+    public GlobalResponse<List<ProductPublicResponse>> searchProducts(
+            @Parameter(description = "The search query term (e.g., 'Super Game')", example = "Super Game") @RequestParam("q") String query,
+            @Parameter(hidden = true) @PageableDefault(size = 10, page = 0) Pageable pageable) {
+        Page<ProductPublicResponse> productPage = publicBrowseService.searchProducts(query, pageable);
         PaginationMeta meta = new PaginationMeta(productPage);
         return GlobalResponse.success(productPage.getContent(), meta);
     }
