@@ -28,6 +28,11 @@ spring:
           # it will use this environment variable to explore the public key of user-service
           issuer-uri: ${ECOMMERCE_JWT_ISSUER_URL}
 
+  data:
+    web:
+      pageable:
+        max-page-size: 100
+
 eureka:
   client:
     service-url:
