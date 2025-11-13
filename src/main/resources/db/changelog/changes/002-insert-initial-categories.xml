@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="1-insert-initial-categories-games" author="system-dev">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(1) FROM categories WHERE name = 'GAMES'
+            </sqlCheck>
+        </preConditions>
+        <comment>Insert initial category: GAMES</comment>
+        <insert tableName="categories">
+            <column name="name" value="GAMES"/>
+        </insert>
+    </changeSet>
+
+    <changeSet id="2-insert-initial-categories-books" author="system-dev">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(1) FROM categories WHERE name = 'BOOKS'
+            </sqlCheck>
+        </preConditions>
+        <comment>Insert initial category: BOOKS</comment>
+        <insert tableName="categories">
+            <column name="name" value="BOOKS"/>
+        </insert>
+    </changeSet>
+
+</databaseChangeLog>
