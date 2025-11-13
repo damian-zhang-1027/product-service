@@ -19,4 +19,8 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
 
     @Query(value = "SELECT * FROM products p WHERE MATCH(p.title, p.description) AGAINST (:query IN BOOLEAN MODE)", countQuery = "SELECT COUNT(*) FROM products p WHERE MATCH(p.title, p.description) AGAINST (:query IN BOOLEAN MODE)", nativeQuery = true)
     Page<Product> searchByTitleAndDescription(@Param("query") String query, Pageable pageable);
+
+    Page<Product> findBySellerAdminId(Long sellerAdminId, Pageable pageable);
+
+    Page<Product> findBySellerAdminIdAndCategoryId(Long sellerAdminId, Long categoryId, Pageable pageable);
 }
