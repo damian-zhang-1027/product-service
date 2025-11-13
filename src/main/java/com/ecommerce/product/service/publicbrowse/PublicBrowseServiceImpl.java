@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.ecommerce.product.controller.publicbrowse.dto.ProductPublicResponse;
+import com.ecommerce.product.exception.ProductNotFoundException;
 import com.ecommerce.product.model.db.entity.Product;
 import com.ecommerce.product.repository.db.ProductRepository;
 
@@ -60,5 +61,18 @@ public class PublicBrowseServiceImpl implements PublicBrowseService {
                 .filter(term -> !term.isBlank())
                 .map(term -> "+" + term + "*")
                 .collect(Collectors.joining(" "));
+    }
+
+    @Override
+    public ProductPublicResponse getProductById(Long productId) {
+        log.info("Fetching public details for productId: {}", productId);
+
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> {
+                    log.warn("ProductNotFoundException for productId: {}", productId);
+                    return new ProductNotFoundException(productId);
+                });
+
+        return new ProductPublicResponse(product);
     }
 }

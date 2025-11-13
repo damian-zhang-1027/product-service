@@ -9,6 +9,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import com.ecommerce.product.exception.ProductNotFoundException;
 import com.ecommerce.product.framework.response.GlobalResponse;
 
 import lombok.extern.slf4j.Slf4j;
@@ -44,6 +45,16 @@ public class GlobalExceptionHandler {
         log.warn("Authentication failed: {}", ex.getMessage());
         GlobalResponse<Object> response = GlobalResponse.error("Authentication failed: Bad credentials");
         return new ResponseEntity<>(response, HttpStatus.UNAUTHORIZED);
+    }
+
+    /**
+     * Handles 404 Not Found (Product not found).
+     */
+    @ExceptionHandler(ProductNotFoundException.class)
+    public ResponseEntity<GlobalResponse<Object>> handleProductNotFoundException(ProductNotFoundException ex) {
+        log.warn("Resource not found: {}", ex.getMessage());
+        GlobalResponse<Object> response = GlobalResponse.error(ex.getMessage());
+        return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
     }
 
     /**

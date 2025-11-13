@@ -10,4 +10,6 @@ public interface PublicBrowseService {
     Page<ProductPublicResponse> getAllProducts(Long categoryId, Pageable pageable);
 
     Page<ProductPublicResponse> searchProducts(String query, Pageable pageable);
+
+    ProductPublicResponse getProductById(Long productId);
 }

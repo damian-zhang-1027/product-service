@@ -6,6 +6,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -20,6 +21,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 
@@ -53,6 +55,18 @@ public class PublicBrowseController {
         return GlobalResponse.success(productPage.getContent(), meta);
     }
 
+    @Operation(summary = "Get a single product's public details")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Product details retrieved successfully", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ProductResponseWrapper.class))),
+            @ApiResponse(responseCode = "404", description = "Product not found", content = @Content(mediaType = "application/json", schema = @Schema(implementation = GlobalResponse.class)))
+    })
+    @GetMapping("/{productId}")
+    public GlobalResponse<ProductPublicResponse> getProductById(
+            @Parameter(description = "The ID of the product", example = "101") @PathVariable Long productId) {
+        ProductPublicResponse product = publicBrowseService.getProductById(productId);
+        return GlobalResponse.success(product);
+    }
+
     /**
      * swagger doc helper class for pagination response
      * since java type erasure and swagger's limitation on generic record,
@@ -73,5 +87,15 @@ public class PublicBrowseController {
 
         @Schema(description = "Pagination metadata")
         public PaginationMeta meta;
+    }
+
+    @Schema(description = "Response wrapper for a Single Public Product")
+    private static class ProductResponseWrapper {
+        @Schema(example = "0")
+        public int retCode;
+        @Schema(description = "The product details")
+        public ProductPublicResponse data;
+        @Schema(nullable = true)
+        public Object meta;
     }
 }
