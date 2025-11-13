@@ -4,11 +4,14 @@ import java.util.stream.Collectors;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import com.ecommerce.product.exception.CategoryNotFoundException;
+import com.ecommerce.product.exception.ProductAccessDeniedException;
 import com.ecommerce.product.exception.ProductNotFoundException;
 import com.ecommerce.product.framework.response.GlobalResponse;
 
@@ -35,6 +38,13 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
     }
 
+    @ExceptionHandler(CategoryNotFoundException.class)
+    public ResponseEntity<GlobalResponse<Object>> handleCategoryNotFoundException(CategoryNotFoundException ex) {
+        log.warn("Invalid input: {}", ex.getMessage());
+        GlobalResponse<Object> response = GlobalResponse.error(ex.getMessage());
+        return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+    }
+
     /**
      * Handles 401 Unauthorized (Authentication failures).
      * This catches BadCredentialsException (wrong password)
@@ -45,6 +55,13 @@ public class GlobalExceptionHandler {
         log.warn("Authentication failed: {}", ex.getMessage());
         GlobalResponse<Object> response = GlobalResponse.error("Authentication failed: Bad credentials");
         return new ResponseEntity<>(response, HttpStatus.UNAUTHORIZED);
+    }
+
+    @ExceptionHandler({ AccessDeniedException.class, ProductAccessDeniedException.class })
+    public ResponseEntity<GlobalResponse<Object>> handleAccessDeniedException(AccessDeniedException ex) {
+        log.warn("Access Denied: {}", ex.getMessage());
+        GlobalResponse<Object> response = GlobalResponse.error("Access Denied");
+        return new ResponseEntity<>(response, HttpStatus.FORBIDDEN);
     }
 
     /**
