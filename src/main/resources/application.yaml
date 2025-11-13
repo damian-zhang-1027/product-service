@@ -33,6 +33,15 @@ spring:
       pageable:
         max-page-size: 100
 
+  kafka:
+    bootstrap-servers: kafka:9092
+    consumer:
+      group-id: product-service-group
+      auto-offset-reset: earliest
+    admin:
+      properties:
+        "[bootstrap.servers]": kafka:9092
+
 eureka:
   client:
     service-url:
