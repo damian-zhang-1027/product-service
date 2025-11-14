@@ -2,18 +2,17 @@ package com.ecommerce.product.kafka.producer;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.kafka.core.KafkaTemplate;
-import org.springframework.kafka.support.SendResult;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import com.ecommerce.product.model.db.entity.OutboxEvent;
 import com.ecommerce.product.repository.db.OutboxEventRepository;
+import com.ecommerce.product.util.JsonUtil;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,12 +23,13 @@ import lombok.extern.slf4j.Slf4j;
 public class OutboxEventPoller {
 
     private final OutboxEventRepository outboxEventRepository;
-
     private final KafkaTemplate<String, String> kafkaTemplate;
+    private final JsonUtil jsonUtil;
 
     private static final Pageable BATCH_PAGEABLE = PageRequest.of(0, 100);
     private static final String STATUS_PENDING = "PENDING";
     private static final String STATUS_SENT = "SENT";
+    // private static final String STATUS_FAILED = "FAILED";
 
     @Scheduled(fixedDelayString = "${kafka.poller.delay.ms:1000}")
     public void pollOutboxEvents() {
@@ -43,32 +43,29 @@ public class OutboxEventPoller {
         }
 
         log.info("[Outbox] Found {} pending events to publish...", events.size());
-
-        List<CompletableFuture<SendResult<String, String>>> futures = new ArrayList<>();
         List<OutboxEvent> sentEvents = new ArrayList<>();
 
         for (OutboxEvent event : events) {
             try {
                 String topic = event.getAggregateType();
                 String key = event.getAggregateId();
-                String payload = event.getPayload();
+                String value = jsonUtil.toJson(event);
+                ProducerRecord<String, String> record = new ProducerRecord<>(topic, key, value);
 
-                ProducerRecord<String, String> record = new ProducerRecord<>(topic, key, payload);
-
-                CompletableFuture<SendResult<String, String>> future = kafkaTemplate.send(record);
-                futures.add(future);
+                kafkaTemplate.send(record).get();
 
                 event.setStatus(STATUS_SENT);
                 sentEvents.add(event);
 
             } catch (Exception e) {
-                // will retry in the next poller
-                log.error("[Outbox] Failed to send eventId: {}. Error: {}", event.getEventId(), e.getMessage(), e);
+                // wait for next poll
+                log.error("[Outbox] Failed to send eventId: {}. Error: {}", event.getEventId(), e.getMessage());
             }
         }
 
-        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
-        outboxEventRepository.saveAll(sentEvents);
-        log.info("[Outbox] Successfully published {} events.", sentEvents.size());
+        if (!sentEvents.isEmpty()) {
+            outboxEventRepository.saveAll(sentEvents);
+            log.info("[Outbox] Successfully published {} events.", sentEvents.size());
+        }
     }
 }

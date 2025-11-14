@@ -5,14 +5,14 @@ import org.springframework.kafka.support.KafkaHeaders;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Component;
 
-import com.ecommerce.product.kafka.dto.BaseEventDto;
-import com.ecommerce.product.kafka.dto.OrderCreatedEvent;
-import com.ecommerce.product.service.stock.StockService;
+import com.ecommerce.product.model.db.entity.OutboxEvent;
+import com.ecommerce.product.service.stock.StockSagaService;
 import com.ecommerce.product.util.JsonUtil;
 
-import io.micrometer.tracing.Span;
-import io.micrometer.tracing.TraceContext;
-import io.micrometer.tracing.Tracer;
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.StatusCode;
+import io.opentelemetry.api.trace.Tracer;
+import io.opentelemetry.context.Scope;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -21,59 +21,37 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class OrderEventConsumer {
 
-    private final StockService stockService;
+    private final StockSagaService stockSagaService;
     private final JsonUtil jsonUtil;
     private final Tracer tracer;
 
-    @KafkaListener(topics = "orders")
-    public void handleOrderEvent(String message,
-            @Header(KafkaHeaders.RECEIVED_TOPIC) String topic,
-            @Header(KafkaHeaders.RECEIVED_KEY) String key) {
+    private static final String EVENT_TYPE_ORDER_CREATED = "ORDER_CREATED";
 
-        log.info("Received Kafka message from topic={}: key={}", topic, key);
+    @KafkaListener(topics = "orders", groupId = "product-service-group")
+    public void handleOrderEvent(String message, @Header(KafkaHeaders.RECEIVED_KEY) String key) {
+
+        Span consumerSpan = tracer.spanBuilder("consume-order-created").startSpan();
 
         try {
-            BaseEventDto baseEvent = jsonUtil.fromJson(message, BaseEventDto.class);
+            OutboxEvent incomingEvent = jsonUtil.fromJson(message, OutboxEvent.class);
 
-            if (baseEvent.eventType() == null) {
-                log.warn("Received message with missing eventType: {}", message);
-                return;
-            }
+            if (EVENT_TYPE_ORDER_CREATED.equals(incomingEvent.getEventType())) {
+                log.info("[Consumer] Received event: {}. Key: {}", EVENT_TYPE_ORDER_CREATED, key);
 
-            switch (baseEvent.eventType()) {
-                case "ORDER_CREATED":
-                    processOrderCreated(message);
-                    break;
-                default:
-                    log.warn("Received unknown event type {}: {}", baseEvent.eventType(), message);
-                    break;
+                consumerSpan.updateName("consume-order-created");
+                consumerSpan.setAttribute("kafka.event.id", incomingEvent.getEventId());
+                consumerSpan.setAttribute("kafka.aggregate.id", incomingEvent.getAggregateId());
+
+                try (Scope ws = consumerSpan.makeCurrent()) {
+                    stockSagaService.processOrderCreated(incomingEvent);
+                }
             }
 
         } catch (Exception e) {
-            // DLQ logic would go here
-            log.error("Failed to process Kafka message: {}. Error: {}", message, e.getMessage(), e);
-        }
-    }
-
-    private void processOrderCreated(String message) {
-        OrderCreatedEvent event = jsonUtil.fromJson(message, OrderCreatedEvent.class);
-
-        Span newSpan;
-        if (event.metadata() != null && event.metadata().traceId() != null) {
-            TraceContext parentContext = this.tracer.traceContextBuilder()
-                    .traceId(event.metadata().traceId())
-                    .spanId(event.metadata().causationId())
-                    .build();
-
-            newSpan = this.tracer.spanBuilder()
-                    .setParent(parentContext)
-                    .start();
-        } else {
-            newSpan = this.tracer.nextSpan().start();
-        }
-
-        try (Tracer.SpanInScope ws = this.tracer.withSpan(newSpan.name("consume-order-created").start())) {
-            stockService.processOrderCreated(event);
+            log.error("[Consumer] Failed to process event from 'orders' topic. Key: {}. Error: {}",
+                    key, e.getMessage(), e);
+            consumerSpan.setStatus(StatusCode.ERROR, e.getMessage());
+            consumerSpan.recordException(e);
         }
     }
 }

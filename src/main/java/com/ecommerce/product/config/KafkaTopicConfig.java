@@ -25,8 +25,8 @@ public class KafkaTopicConfig {
     }
 
     @Bean
-    public NewTopic stockTopic() {
-        return TopicBuilder.name("stock")
+    public NewTopic stocksTopic() {
+        return TopicBuilder.name("stocks")
                 .partitions(1)
                 .replicas(1)
                 .build();
