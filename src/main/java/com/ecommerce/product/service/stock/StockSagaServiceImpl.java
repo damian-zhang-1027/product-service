@@ -35,6 +35,8 @@ public class StockSagaServiceImpl implements StockSagaService {
     private static final String STATUS_PENDING = "PENDING";
     private static final String EVENT_TYPE_STOCK_RESERVED = "STOCK_RESERVED";
     private static final String EVENT_TYPE_STOCK_RESERVE_FAILED = "STOCK_RESERVE_FAILED";
+    private static final String EVENT_TYPE_PAYMENT_SUCCEEDED = "PAYMENT_SUCCEEDED";
+    private static final String EVENT_TYPE_PAYMENT_FAILED = "PAYMENT_FAILED";
 
     @Override
     @Transactional
@@ -103,5 +105,58 @@ public class StockSagaServiceImpl implements StockSagaService {
         outboxEventRepository.save(outgoingEvent);
 
         log.info("[Saga] Created Outbox event: {} for OrderId: {}", newEventType, payload.orderId());
+    }
+
+    @Override
+    @Transactional
+    public void processPaymentResult(OutboxEvent incomingEvent) {
+        SagaEventPayload payload = jsonUtil.fromJson(incomingEvent.getPayload(), SagaEventPayload.class);
+        String eventType = incomingEvent.getEventType();
+
+        List<Long> productIds = payload.items().stream()
+                .map(OrderItemDto::productId)
+                .toList();
+
+        Map<Long, Product> productMap = productRepository.findAllById(productIds).stream()
+                .collect(Collectors.toMap(Product::getId, Function.identity()));
+
+        if (EVENT_TYPE_PAYMENT_SUCCEEDED.equals(eventType)) {
+            log.info("[Saga] Payment Succeeded for OrderId: {}. Confirming stock reservation...", payload.orderId());
+
+            for (OrderItemDto item : payload.items()) {
+                Product product = productMap.get(item.productId());
+                if (product != null) {
+                    int newReservedStock = product.getStockReserved() - item.quantity();
+
+                    if (newReservedStock < 0) {
+                        log.warn("[Saga] Stock inconsistency detected for ProductId: {}. Reserved stock is negative.",
+                                product.getId());
+                    }
+
+                    product.setStockReserved(Math.max(0, newReservedStock));
+                }
+            }
+
+        } else if (EVENT_TYPE_PAYMENT_FAILED.equals(eventType)) {
+            log.warn("[Saga] Payment FAILED for OrderId: {}. Compensating (releasing) stock...", payload.orderId());
+
+            for (OrderItemDto item : payload.items()) {
+                Product product = productMap.get(item.productId());
+                if (product != null) {
+                    int newReservedStock = product.getStockReserved() - item.quantity();
+                    int newAvailableStock = product.getStockAvailable() + item.quantity();
+
+                    product.setStockReserved(Math.max(0, newReservedStock));
+                    product.setStockAvailable(newAvailableStock);
+                }
+            }
+        } else {
+            log.warn("[Saga] Ignoring unknown event type: {}", eventType);
+            return;
+        }
+
+        productRepository.saveAll(productMap.values());
+
+        log.info("[Saga] Successfully processed event: {} for OrderId: {}.", eventType, payload.orderId());
     }
 }

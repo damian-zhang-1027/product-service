@@ -19,36 +19,39 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class OrderEventConsumer {
+public class PaymentEventConsumer {
 
     private final StockSagaService stockSagaService;
     private final JsonUtil jsonUtil;
     private final Tracer tracer;
 
-    private static final String EVENT_TYPE_ORDER_CREATED = "ORDER_CREATED";
+    private static final String EVENT_TYPE_PAYMENT_SUCCEEDED = "PAYMENT_SUCCEEDED";
+    private static final String EVENT_TYPE_PAYMENT_FAILED = "PAYMENT_FAILED";
 
-    @KafkaListener(topics = "orders", groupId = "product-service-group")
-    public void handleOrderEvent(String message, @Header(KafkaHeaders.RECEIVED_KEY) String key) {
+    @KafkaListener(topics = "payments", groupId = "product-service-group")
+    public void handlePaymentEvent(String message, @Header(KafkaHeaders.RECEIVED_KEY) String key) {
 
-        Span consumerSpan = tracer.spanBuilder("consume-order-created").startSpan();
+        Span consumerSpan = tracer.spanBuilder("consume-payment-result").startSpan();
 
         try {
             OutboxEvent incomingEvent = jsonUtil.fromJson(message, OutboxEvent.class);
+            String eventType = incomingEvent.getEventType();
 
-            if (EVENT_TYPE_ORDER_CREATED.equals(incomingEvent.getEventType())) {
-                log.info("[Consumer] Received event: {}. Key: {}", EVENT_TYPE_ORDER_CREATED, key);
+            if (EVENT_TYPE_PAYMENT_SUCCEEDED.equals(eventType) || EVENT_TYPE_PAYMENT_FAILED.equals(eventType)) {
 
-                consumerSpan.setAttribute("kafka.event.type", EVENT_TYPE_ORDER_CREATED);
+                log.info("[Consumer] Received event: {}. Key: {}", eventType, key);
+
+                consumerSpan.setAttribute("kafka.event.type", eventType);
                 consumerSpan.setAttribute("kafka.event.id", incomingEvent.getEventId());
                 consumerSpan.setAttribute("kafka.aggregate.id", incomingEvent.getAggregateId());
 
                 try (Scope ws = consumerSpan.makeCurrent()) {
-                    stockSagaService.processOrderCreated(incomingEvent);
+                    stockSagaService.processPaymentResult(incomingEvent);
                 }
             }
 
         } catch (Exception e) {
-            log.error("[Consumer] Failed to process event from 'orders' topic. Key: {}. Error: {}",
+            log.error("[Consumer] Failed to process event from 'payments' topic. Key: {}. Error: {}",
                     key, e.getMessage(), e);
             consumerSpan.setStatus(StatusCode.ERROR, e.getMessage());
             consumerSpan.recordException(e);
